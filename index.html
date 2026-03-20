@@ -1,126 +1,81 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audio Test v2</title>
+<title>Audio Test v3</title>
 <style>
-body{background:#111;color:#fff;font-family:sans-serif;padding:16px;font-size:16px}
-button{display:block;width:100%;padding:18px;margin:8px 0;font-size:18px;border:none;border-radius:12px;cursor:pointer;font-weight:bold}
-.log{background:#1a1a1a;border:1px solid #333;padding:10px;border-radius:8px;font-size:12px;height:250px;overflow-y:auto;margin-top:10px;font-family:monospace}
+body{background:#111;color:#fff;font-family:sans-serif;padding:16px;font-size:15px}
+button{display:block;width:100%;padding:16px;margin:8px 0;font-size:16px;border:none;border-radius:12px;cursor:pointer;font-weight:bold}
+.log{background:#1a1a1a;border:1px solid #333;padding:10px;border-radius:8px;font-size:12px;height:300px;overflow-y:auto;margin-top:10px;font-family:monospace;word-break:break-all}
 </style>
 </head>
 <body>
-<h2>🎵 Audio Test v2</h2>
-<p id="status" style="color:#f5c842;margin-bottom:10px">Toca cualquier botón para empezar</p>
+<h2>🎵 Audio Test v3</h2>
 
-<button onclick="testDirect()" style="background:#2dd4bf;color:#000">
-  TEST A: Fetch iTunes → Play directo
-</button>
-
-<button onclick="testPreload()" style="background:#f5c842;color:#000">
-  TEST B: Pre-fetch URL → Tap para play
-</button>
-
-<button onclick="tapPlay()" style="background:#4ade80;color:#000" id="btn-play" disabled>
-  ▶ TAP AQUÍ PARA PLAY (después de TEST B)
-</button>
-
-<button onclick="testM4a()" style="background:#9b5de5">
-  TEST C: URL .m4a directa de iTunes
-</button>
-
+<button onclick="testProxy1()" style="background:#2dd4bf;color:#000">TEST 1: corsproxy.io</button>
+<button onclick="testProxy2()" style="background:#f5c842;color:#000">TEST 2: allorigins.win</button>
+<button onclick="testProxy3()" style="background:#9b5de5">TEST 3: api.codetabs.com</button>
+<button onclick="testProxy4()" style="background:#e8407a">TEST 4: iTunes directo sin proxy</button>
 <button onclick="clearLog()" style="background:#333">🗑 Limpiar</button>
 
 <div class="log" id="log"></div>
 
 <script>
 var ael = new Audio();
-var cachedUrl = null;
+ael.addEventListener('playing', function(){ log('✅ AUDIO PLAYING!', '#4ade80'); });
+ael.addEventListener('error',   function(){ log('❌ Audio error: '+(ael.error?ael.error.code:'?'), '#e8407a'); });
 
 function log(msg, color) {
   var d = document.getElementById('log');
   var t = new Date().toTimeString().substr(0,8);
-  var c = color || '#fff';
-  d.innerHTML = '<div style="color:'+c+'">'+t+' '+msg+'</div>' + d.innerHTML;
+  d.innerHTML = '<div style="color:'+(color||'#fff')+'">'+t+' '+msg+'</div>' + d.innerHTML;
 }
-function status(msg) { document.getElementById('status').textContent = msg; }
 
-ael.addEventListener('playing', function(){ log('✅ PLAYING — audio works!', '#4ade80'); status('✅ REPRODUCIENDO'); });
-ael.addEventListener('error',   function(){ 
-  var code = ael.error ? ael.error.code : '?';
-  var msg  = ael.error ? ael.error.message : '?';
-  log('❌ ERROR code='+code+' msg='+msg, '#e8407a'); 
-});
-ael.addEventListener('canplay', function(){ log('▶ canplay', '#aaa'); });
-ael.addEventListener('stalled', function(){ log('⚠ stalled', '#f5c842'); });
+var TERM = 'Bohemian Rhapsody Queen';
+var BASE = 'https://itunes.apple.com/search?term='+encodeURIComponent(TERM)+'&media=music&entity=song&limit=3';
 
-// TEST A: fetch then play in same .then() chain
-function testDirect() {
-  log('--- TEST A: fetch → play ---');
-  status('Fetching iTunes…');
-  fetch('https://itunes.apple.com/search?term=Bohemian+Rhapsody+Queen&media=music&entity=song&limit=5')
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var tr = (d.results||[]).find(function(x){ return x.previewUrl; });
-      if (!tr) { log('❌ No preview URL found', '#e8407a'); return; }
-      log('Got URL: '+tr.previewUrl.substr(0,60)+'…', '#aaa');
-      ael.src = tr.previewUrl;
-      var p = ael.play();
-      log('play() called');
-      if (p) p.then(function(){ log('✅ play() promise OK', '#4ade80'); })
-              .catch(function(e){ log('❌ play() rejected: '+e.name+': '+e.message, '#e8407a'); });
+function tryFetch(label, url) {
+  log('--- '+label+' ---');
+  log('URL: '+url.substr(0,80)+'…', '#888');
+  fetch(url)
+    .then(function(r){
+      log('HTTP '+r.status, r.ok?'#4ade80':'#f5c842');
+      return r.text();
     })
-    .catch(function(e){ log('❌ fetch failed: '+e, '#e8407a'); });
-}
-
-// TEST B: pre-fetch URL (no tap needed), then use button tap to play
-function testPreload() {
-  log('--- TEST B: pre-fetching URL… ---');
-  status('Pre-fetching…');
-  cachedUrl = null;
-  document.getElementById('btn-play').disabled = true;
-  fetch('https://itunes.apple.com/search?term=Bohemian+Rhapsody+Queen&media=music&entity=song&limit=5')
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var tr = (d.results||[]).find(function(x){ return x.previewUrl; });
-      if (!tr) { log('❌ No URL', '#e8407a'); return; }
-      cachedUrl = tr.previewUrl;
-      log('✅ URL cached! Now tap the GREEN button', '#4ade80');
-      status('✅ URL lista — ahora toca el botón verde');
-      document.getElementById('btn-play').disabled = false;
+    .then(function(text){
+      log('Response (first 100): '+text.substr(0,100), '#aaa');
+      try {
+        var d = JSON.parse(text);
+        var tr = (d.results||[]).find(function(x){ return x.previewUrl; });
+        if (tr) {
+          log('✅ Got preview URL! Playing…', '#4ade80');
+          ael.src = tr.previewUrl;
+          ael.play().then(function(){ log('✅ PLAYS!', '#4ade80'); })
+                    .catch(function(e){ log('❌ play: '+e.name, '#e8407a'); });
+        } else {
+          log('⚠ No previewUrl in results', '#f5c842');
+        }
+      } catch(e) {
+        log('❌ JSON parse error: '+e.message, '#e8407a');
+      }
     })
-    .catch(function(e){ log('❌ '+e, '#e8407a'); });
+    .catch(function(e){ log('❌ fetch failed: '+e.name+': '+e.message, '#e8407a'); });
 }
 
-// Tap handler — play() is called synchronously from user tap
-function tapPlay() {
-  if (!cachedUrl) { log('❌ No URL cached yet', '#e8407a'); return; }
-  log('--- TAP PLAY with cached URL ---');
-  ael.src = cachedUrl;
-  var p = ael.play();
-  log('play() called synchronously from tap');
-  if (p) p.then(function(){ log('✅ play() OK!', '#4ade80'); })
-          .catch(function(e){ log('❌ '+e.name+': '+e.message, '#e8407a'); });
+function testProxy1() {
+  tryFetch('corsproxy.io', 'https://corsproxy.io/?'+encodeURIComponent(BASE));
 }
-
-// TEST C: use a fresh iTunes URL fetched right now
-function testM4a() {
-  log('--- TEST C: fresh iTunes fetch ---');
-  fetch('https://itunes.apple.com/search?term=Despacito+Luis+Fonsi&media=music&entity=song&limit=5')
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var tr = (d.results||[]).find(function(x){ return x.previewUrl; });
-      if (!tr) { log('❌ No preview', '#e8407a'); return; }
-      log('URL: '+tr.previewUrl.substr(0,60));
-      ael.src = tr.previewUrl;
-      ael.play()
-        .then(function(){ log('✅ WORKS!', '#4ade80'); })
-        .catch(function(e){ log('❌ '+e.name+': '+e.message, '#e8407a'); });
-    })
-    .catch(function(e){ log('❌ '+e, '#e8407a'); });
+function testProxy2() {
+  tryFetch('allorigins.win', 'https://api.allorigins.win/raw?url='+encodeURIComponent(BASE));
+}
+function testProxy3() {
+  tryFetch('codetabs', 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(BASE));
+}
+function testProxy4() {
+  tryFetch('iTunes directo', BASE);
 }
 
 function clearLog(){ document.getElementById('log').innerHTML=''; }
-log('Page ready. Tap a test button.', '#aaa');
+log('Toca un botón para probar', '#aaa');
 </script>
 </body>
 </html>
