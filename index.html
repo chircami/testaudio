@@ -1,81 +1,91 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Audio Test v3</title>
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https: data: blob:">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Audio Test Final</title>
 <style>
-body{background:#111;color:#fff;font-family:sans-serif;padding:16px;font-size:15px}
-button{display:block;width:100%;padding:16px;margin:8px 0;font-size:16px;border:none;border-radius:12px;cursor:pointer;font-weight:bold}
-.log{background:#1a1a1a;border:1px solid #333;padding:10px;border-radius:8px;font-size:12px;height:300px;overflow-y:auto;margin-top:10px;font-family:monospace;word-break:break-all}
+body{background:#111;color:#fff;font-family:sans-serif;padding:16px}
+button{display:block;width:100%;padding:16px;margin:8px 0;font-size:17px;border:none;border-radius:12px;cursor:pointer;font-weight:bold}
+.log{background:#1a1a1a;padding:10px;border-radius:8px;font-size:12px;height:280px;overflow-y:auto;margin-top:10px;font-family:monospace;word-break:break-all}
 </style>
 </head>
 <body>
-<h2>🎵 Audio Test v3</h2>
-
-<button onclick="testProxy1()" style="background:#2dd4bf;color:#000">TEST 1: corsproxy.io</button>
-<button onclick="testProxy2()" style="background:#f5c842;color:#000">TEST 2: allorigins.win</button>
-<button onclick="testProxy3()" style="background:#9b5de5">TEST 3: api.codetabs.com</button>
-<button onclick="testProxy4()" style="background:#e8407a">TEST 4: iTunes directo sin proxy</button>
-<button onclick="clearLog()" style="background:#333">🗑 Limpiar</button>
-
+<h2>🎵 Audio Test Final</h2>
+<button onclick="testDirect()" style="background:#2dd4bf;color:#000">TEST 1: iTunes directo → play</button>
+<button onclick="testProxy()" style="background:#f5c842;color:#000">TEST 2: allorigins → play</button>
+<button onclick="testBoth()" style="background:#9b5de5">TEST 3: directo con fallback proxy</button>
+<button onclick="stopAudio()" style="background:#444">⏹ Stop</button>
 <div class="log" id="log"></div>
-
 <script>
 var ael = new Audio();
-ael.addEventListener('playing', function(){ log('✅ AUDIO PLAYING!', '#4ade80'); });
-ael.addEventListener('error',   function(){ log('❌ Audio error: '+(ael.error?ael.error.code:'?'), '#e8407a'); });
+ael.addEventListener('playing', function(){ log('✅ PLAYING!', '#4ade80'); });
+ael.addEventListener('error',   function(){ log('❌ Audio error code='+(ael.error?ael.error.code:'?'), '#e8407a'); });
 
-function log(msg, color) {
-  var d = document.getElementById('log');
-  var t = new Date().toTimeString().substr(0,8);
-  d.innerHTML = '<div style="color:'+(color||'#fff')+'">'+t+' '+msg+'</div>' + d.innerHTML;
+function log(msg,color){
+  var d=document.getElementById('log');
+  d.innerHTML='<div style="color:'+(color||'#fff')+'">'+new Date().toTimeString().substr(0,8)+' '+msg+'</div>'+d.innerHTML;
 }
 
-var TERM = 'Bohemian Rhapsody Queen';
-var BASE = 'https://itunes.apple.com/search?term='+encodeURIComponent(TERM)+'&media=music&entity=song&limit=3';
+var BASE = 'https://itunes.apple.com/search?term=Bohemian+Rhapsody+Queen&media=music&entity=song&limit=5';
 
-function tryFetch(label, url) {
-  log('--- '+label+' ---');
-  log('URL: '+url.substr(0,80)+'…', '#888');
-  fetch(url)
-    .then(function(r){
-      log('HTTP '+r.status, r.ok?'#4ade80':'#f5c842');
-      return r.text();
+function playUrl(url) {
+  log('Playing: '+url.substr(0,60)+'…','#aaa');
+  ael.src = url;
+  ael.play().then(function(){ log('✅ play() resolved','#4ade80'); })
+            .catch(function(e){ log('❌ play() '+e.name+': '+e.message,'#e8407a'); });
+}
+
+function testDirect() {
+  log('--- TEST 1: iTunes directo ---');
+  fetch(BASE)
+    .then(function(r){ log('HTTP '+r.status); return r.json(); })
+    .then(function(d){
+      var tr=(d.results||[]).find(function(x){ return x.previewUrl; });
+      if(tr) playUrl(tr.previewUrl);
+      else log('❌ No preview','#e8407a');
     })
-    .then(function(text){
-      log('Response (first 100): '+text.substr(0,100), '#aaa');
-      try {
-        var d = JSON.parse(text);
-        var tr = (d.results||[]).find(function(x){ return x.previewUrl; });
-        if (tr) {
-          log('✅ Got preview URL! Playing…', '#4ade80');
-          ael.src = tr.previewUrl;
-          ael.play().then(function(){ log('✅ PLAYS!', '#4ade80'); })
-                    .catch(function(e){ log('❌ play: '+e.name, '#e8407a'); });
-        } else {
-          log('⚠ No previewUrl in results', '#f5c842');
-        }
-      } catch(e) {
-        log('❌ JSON parse error: '+e.message, '#e8407a');
-      }
+    .catch(function(e){ log('❌ fetch: '+e.name+': '+e.message,'#e8407a'); });
+}
+
+function testProxy() {
+  log('--- TEST 2: allorigins proxy ---');
+  fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BASE))
+    .then(function(r){ log('HTTP '+r.status); return r.json(); })
+    .then(function(d){
+      var tr=(d.results||[]).find(function(x){ return x.previewUrl; });
+      if(tr) playUrl(tr.previewUrl);
+      else log('❌ No preview','#e8407a');
     })
-    .catch(function(e){ log('❌ fetch failed: '+e.name+': '+e.message, '#e8407a'); });
+    .catch(function(e){ log('❌ fetch: '+e.name+': '+e.message,'#e8407a'); });
 }
 
-function testProxy1() {
-  tryFetch('corsproxy.io', 'https://corsproxy.io/?'+encodeURIComponent(BASE));
-}
-function testProxy2() {
-  tryFetch('allorigins.win', 'https://api.allorigins.win/raw?url='+encodeURIComponent(BASE));
-}
-function testProxy3() {
-  tryFetch('codetabs', 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(BASE));
-}
-function testProxy4() {
-  tryFetch('iTunes directo', BASE);
+function testBoth() {
+  log('--- TEST 3: directo + fallback ---');
+  fetch(BASE)
+    .then(function(r){ log('Directo HTTP '+r.status,'#4ade80'); return r.json(); })
+    .then(function(d){
+      var tr=(d.results||[]).find(function(x){ return x.previewUrl; });
+      if(tr){ log('✅ Directo OK','#4ade80'); playUrl(tr.previewUrl); }
+      else useProxy();
+    })
+    .catch(function(){ log('Directo falló → proxy…','#f5c842'); useProxy(); });
 }
 
-function clearLog(){ document.getElementById('log').innerHTML=''; }
-log('Toca un botón para probar', '#aaa');
+function useProxy() {
+  fetch('https://api.allorigins.win/raw?url='+encodeURIComponent(BASE))
+    .then(function(r){ log('Proxy HTTP '+r.status); return r.json(); })
+    .then(function(d){
+      var tr=(d.results||[]).find(function(x){ return x.previewUrl; });
+      if(tr){ log('✅ Proxy OK','#4ade80'); playUrl(tr.previewUrl); }
+      else log('❌ No preview en proxy','#e8407a');
+    })
+    .catch(function(e){ log('❌ Proxy: '+e.name,'#e8407a'); });
+}
+
+function stopAudio(){ ael.pause(); ael.src=''; }
+log('Listo. Toca un test.','#aaa');
 </script>
 </body>
 </html>
